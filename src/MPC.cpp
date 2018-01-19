@@ -33,6 +33,8 @@ const double CTE_WEIGHT = 255.0;
 const double EPSI_WEIGHT = 1.0;
 const double VELOCITY_WEIGHT = 1.0;
 const double ACTUATION_WEIGHT = 20.0;
+const double DISTANCE_WEIGHT = 0.2;
+
 
 
 // Set the number of model variables (includes both states and inputs).
@@ -78,11 +80,11 @@ class FG_eval {
     // the Solver function below.
 
     fg[0] = 0; //cost value
-    fg[0] += CppAD::pow(vars[cte_start], 4) * CTE_WEIGHT
+    fg[0] += CppAD::pow(vars[cte_start], 6) * CTE_WEIGHT
           + CppAD::pow(vars[epsi_start], 2) * EPSI_WEIGHT
           + CppAD::pow(vars[v_start] - TARGET_V, 2) * VELOCITY_WEIGHT; // not good for when we need to stop at some point
-    fg[0] += CppAD::pow(vars[delta_start], 2) + ACTUATION_WEIGHT * CppAD::pow(vars[a_start], 2);
-//    fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(vars[x_start]-x_dest, 2) + CppAD::pow(vars[y_start]-y_dest, 2)), 2);
+//    fg[0] += CppAD::pow(vars[delta_start], 2) + ACTUATION_WEIGHT * CppAD::pow(vars[a_start], 2);
+    fg[0] += DISTANCE_WEIGHT * CppAD::pow(CppAD::sqrt(CppAD::pow(vars[x_start]-x_dest, 2) + CppAD::pow(vars[y_start]-y_dest, 2)), 2);
 
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -134,9 +136,9 @@ class FG_eval {
       // update constraints
       fg[0] += CppAD::pow(cte1, 4) * CTE_WEIGHT;
       fg[0] += CppAD::pow(epsi1, 2) * EPSI_WEIGHT;
-      fg[0] += CppAD::pow(v1 - TARGET_V, 2) * VELOCITY_WEIGHT;
+//      fg[0] += CppAD::pow(v1 - TARGET_V, 2) * VELOCITY_WEIGHT;
 
-//      fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(x1-x_dest, 2) + CppAD::pow(y1-y_dest, 2)), 2);
+      fg[0] += DISTANCE_WEIGHT * CppAD::pow(CppAD::sqrt(CppAD::pow(x1-x_dest, 2) + CppAD::pow(y1-y_dest, 2)), 2);
 
 //      //reduce use of actuators
       fg[0] += CppAD::pow(delta0, 2);
