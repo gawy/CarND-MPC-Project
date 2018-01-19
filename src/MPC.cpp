@@ -24,6 +24,7 @@ const size_t a_start = delta_start + N - 1;
 
 const size_t f0_start = epsi_start + N;
 const size_t psidest_start = f0_start + N;
+const size_t psicorrection_start = psidest_start + N;
 
 
 // Set the number of model variables (includes both states and inputs).
@@ -33,7 +34,7 @@ const size_t psidest_start = f0_start + N;
 // 4 * 10 + 2 * 9
 const size_t n_vars = N_STATE*N + 2*(N-1);
 // Set the number of constraints
-const size_t n_constraints = N_STATE * N + 2*N;
+const size_t n_constraints = N_STATE * N + 3*N;
 
 
 // This value assumes the model presented in the classroom is used.
@@ -48,9 +49,6 @@ const size_t n_constraints = N_STATE * N + 2*N;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-AD<double> ad_zero = 0.0;
-AD<double> ad_mpi = -M_PI;
-
 class FG_eval {
  public:
   // Fitted polynomial coefficients
@@ -63,6 +61,9 @@ class FG_eval {
     // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
+
+    AD<double> ad_zero = 0.0;
+    AD<double> ad_mpi = -M_PI;
 
     fg[0] = 0; //cost value
     fg[0] += CppAD::pow(vars[cte_start], 2)
@@ -103,9 +104,12 @@ class FG_eval {
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
       fg[1 + f0_start + t] = f0;
 
+      AD<double> psi_correction = CppAD::CondExpGe(y1, y0, ad_zero, ad_mpi);
       AD<double> psi_dest = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2)
-                                        );//+ CppAD::CondExpGe(y1, y0, ad_zero, ad_mpi)
+                                        + psi_correction);
       fg[1 + psidest_start + t] = psi_dest;
+      fg[1 + psicorrection_start + t] = psi_correction;
+
 
       // constraints
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt); //x[t+1] - x[t] = 0
@@ -264,6 +268,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   printVarOverTime(gx, "GEPSI", epsi_start, N-1);
   printVarOverTime(gx, "F0", f0_start, N);
   printVarOverTime(gx, "Psi-D", psidest_start, N);
+  printVarOverTime(gx, "Psi-Cor", psicorrection_start, N);
   cout << "############################################" << endl;
 
 
@@ -309,6 +314,9 @@ void MPC::initConstraintBounds(const Eigen::VectorXd &state, const size_t n_cons
 
     constraints_lowerbound[psidest_start + j] = -1e19;
     constraints_upperbound[psidest_start + j] = 1e19;
+
+    constraints_lowerbound[psicorrection_start + j] = -1e19;
+    constraints_upperbound[psicorrection_start + j] = 1e19;
   }
 
 
