@@ -68,6 +68,7 @@ class FG_eval {
     fg[0] += CppAD::pow(vars[cte_start], 2)
           + CppAD::pow(vars[epsi_start], 2)
           + CppAD::pow(vars[v_start] - 22, 2); // not good for when we need to stop at some point
+//    fg[0] += CppAD::pow(vars[delta_start], 2);
 
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -119,6 +120,16 @@ class FG_eval {
       fg[0] += CppAD::pow(cte1, 2);
       fg[0] += CppAD::pow(epsi1, 2);
       fg[0] += CppAD::pow(v1 - 30, 2);
+
+//      //reduce use of actuators
+//      fg[0] += CppAD::pow(delta0, 2);
+//      fg[0] += CppAD::pow(a0, 2);
+
+      // reduce sharp actuations
+      if (t > 1) {
+        fg[0] += CppAD::pow(delta0 - vars[delta_start + t - 2], 2);
+        fg[0] += CppAD::pow(a0 - vars[a_start + t - 2], 2);
+      }
 
     }
   }
@@ -251,8 +262,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   printVarOverTime(gx, "GV", v_start, N);
   printVarOverTime(gx, "GCTE", cte_start, N-1);
   printVarOverTime(gx, "GEPSI", epsi_start, N-1);
-//  printVarOverTime(gx, "F0", f0_start, N);
-//  printVarOverTime(gx, "Psi-D", psidest_start, N);
+  printVarOverTime(gx, "F0", f0_start, N);
+  printVarOverTime(gx, "Psi-D", psidest_start, N);
   cout << "############################################" << endl;
 
 
