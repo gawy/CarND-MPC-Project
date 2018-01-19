@@ -154,7 +154,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   bool ok = true;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-
+  x_waypts.clear();
+  y_waypts.clear();
 
   cout << "N vars=" << n_vars << ", n constraints=" << n_constraints << endl;
 
@@ -276,6 +277,16 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 //  printVarOverTime(gx, "Psi-Cor", psicorrection_start, N);
   cout << "############################################" << endl;
 
+  // save resulting points to be accessed
+  cout << "MPC waypoints: " << x_waypts.size();
+  for (int j = 0; j < 6; ++j) {
+    x_waypts.push_back(sx[x_start + j]);
+    y_waypts.push_back(sx[y_start + j]);
+
+    cout << "(" << x_waypts[j] << ", " << y_waypts[j] << ") ";
+
+  }
+  cout << endl;
 
   // Return the first actuator values. The variables can be accessed with
   // `solution.x[i]`.

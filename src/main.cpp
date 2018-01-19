@@ -123,8 +123,14 @@ int main() {
           *
           */
 
-          Eigen::Map<VectorXd> x_pts(ptsx.data(), ptsx.size() );
-          Eigen::Map<VectorXd> y_pts(ptsy.data(), ptsy.size());
+          vector<double> car_x(ptsx.size());
+          vector<double> car_y(ptsx.size());
+
+          convertMapToCarCoords(ptsx, ptsy, car_x, car_y, px, py, psi);
+          Eigen::Map<VectorXd> x_pts(car_x.data(), car_x.size());
+          Eigen::Map<VectorXd> y_pts(car_y.data(), car_y.size());
+
+
           cout << "X size: "<< x_pts.size()<< endl;
           VectorXd coeffs = polyfit(x_pts, y_pts, 3); //fit polinomial to waypoints
           cout << "Poly test: x=" << x_pts[1] << ", y=" << polyeval(coeffs, x_pts[1])
@@ -140,7 +146,7 @@ int main() {
                << ", real_psi="<<psi << "(" << rad2deg(psi) << " deg) " << endl;
 
           Eigen::VectorXd state(6);
-          state << px, py, psi, v, cte, epsi;
+          state << 0.0, 0.0, 0.0, v, cte, epsi;
           cout << "State vector is ready" << endl;
 
           cout << "Polynomial coeffs: " << coeffs[0] << "; " << coeffs[1]<< "; " << coeffs[2]<< "; " << coeffs[3] << endl;
@@ -162,7 +168,10 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-
+          for (int i = 0; i < mpc.x_waypts.size(); ++i) {
+            mpc_x_vals.push_back(mpc.x_waypts[i]);
+            mpc_y_vals.push_back(mpc.y_waypts[i]);
+          }
 
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
