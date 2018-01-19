@@ -33,7 +33,7 @@ const size_t psidest_start = f0_start + N;
 // 4 * 10 + 2 * 9
 const size_t n_vars = N_STATE*N + 2*(N-1);
 // Set the number of constraints
-const size_t n_constraints = N_STATE * N;// + 2*N;
+const size_t n_constraints = N_STATE * N + 2*N;
 
 
 // This value assumes the model presented in the classroom is used.
@@ -101,11 +101,11 @@ class FG_eval {
       AD<double> a0 = vars[a_start + t - 1]; // acceleration
 
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
-//      fg[1 + f0_start + t] = f0;
+      fg[1 + f0_start + t] = f0;
 
       AD<double> psi_dest = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2)
-                                        + CppAD::CondExpGe(y1, y0, ad_zero, ad_mpi));
-//      fg[1 + psidest_start + t] = psi_dest;
+                                        );//+ CppAD::CondExpGe(y1, y0, ad_zero, ad_mpi)
+      fg[1 + psidest_start + t] = psi_dest;
 
       // constraints
       fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt); //x[t+1] - x[t] = 0
@@ -303,13 +303,13 @@ void MPC::initConstraintBounds(const Eigen::VectorXd &state, const size_t n_cons
   constraints_lowerbound[epsi_start] = state[5];
   constraints_upperbound[epsi_start] = state[5];
 
-//  for (int j = 0; j < N; ++j) {
-//    constraints_lowerbound[f0_start + j] = -1e19;
-//    constraints_upperbound[f0_start + j] = 1e19;
-//
-//    constraints_lowerbound[psidest_start + j] = -1e19;
-//    constraints_upperbound[psidest_start + j] = 1e19;
-//  }
+  for (int j = 0; j < N; ++j) {
+    constraints_lowerbound[f0_start + j] = -1e19;
+    constraints_upperbound[f0_start + j] = 1e19;
+
+    constraints_lowerbound[psidest_start + j] = -1e19;
+    constraints_upperbound[psidest_start + j] = 1e19;
+  }
 
 
   cout << "Constraint Bounds" << endl;
