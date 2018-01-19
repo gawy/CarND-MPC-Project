@@ -9,6 +9,9 @@
 #include "MPC.h"
 #include "json.hpp"
 
+using namespace std;
+using namespace Eigen;
+
 // for convenience
 using json = nlohmann::json;
 
@@ -92,14 +95,46 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
 
+          // convert speed to m/s
+          v = v * 1.6 * 1000 / 3600;
+
+          // normalize psi to -PI to PI
+          while (psi > M_PI) { psi -= 2*M_PI; }
+          while (psi < -M_PI) { psi += 2*M_PI; }
+
           /*
-          * TODO: Calculate steering angle and throttle using MPC.
+          * Calculate steering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+
+          Eigen::Map<VectorXd> x_pts(ptsx.data(), ptsx.size() );
+          Eigen::Map<VectorXd> y_pts(ptsy.data(), ptsy.size());
+          cout << "X size: "<< x_pts.size()<< endl;
+          VectorXd coeffs = polyfit(x_pts, y_pts, 3); //fit polinomial to waypoints
+          cout << "Poly test: x=" << x_pts[1] << ", y=" << polyeval(coeffs, x_pts[1])
+               << "; x1=" << x_pts[4] << ", y1=" << polyeval(coeffs, x_pts[4]) << endl;
+
+          double cte = polyeval(coeffs, px) - py;
+          double direction = (y_pts[1]-y_pts[0] > 0) ? 0 : -M_PI;
+          double tan_psi = coeffs[1] + 2*coeffs[2]*px + 3*coeffs[3]*px*px + direction;
+
+          double epsi = psi - atan(tan_psi);
+
+          cout << "epsi=" << epsi << ", k="<<tan_psi << "(" << rad2deg(tan_psi) << " deg) "
+               << ", real_psi="<<psi << "(" << rad2deg(psi) << " deg) " << endl;
+
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+          cout << "State vector is ready" << endl;
+
+          cout << "Polynomial coeffs: " << coeffs[0] << "; " << coeffs[1]<< "; " << coeffs[2]<< "; " << coeffs[3] << endl;
+
+          vector<double> controls = mpc.Solve(state, coeffs);
+
+          double steer_value = controls[0] / deg2rad(25);
+          double throttle_value = controls[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -114,12 +149,13 @@ int main() {
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
 
+
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals;
-          vector<double> next_y_vals;
+          vector<double> next_x_vals(ptsx);
+          vector<double> next_y_vals(ptsy);
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
@@ -139,7 +175,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+//          this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
