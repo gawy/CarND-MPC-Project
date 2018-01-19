@@ -44,6 +44,20 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+void convertMapToCarCoords(vector<double> &ptsx, vector<double> &ptsy,
+                      vector<double> &outx, vector<double> &outy,
+                      double xCenter, double yCenter, double psi) {
+  for (int i = 0; i < ptsx.size(); ++i) {
+    double x0 = ptsx[i];
+    double y0 = ptsy[i];
+    double x = -(x0 - xCenter) * cos(M_PI - psi) + (y0 - yCenter) * sin(M_PI - psi);
+    double y = -(x0 - xCenter) * sin(M_PI - psi) - (y0 - yCenter) * cos(M_PI - psi);
+
+    outx[i] = x;
+    outy[i] = y;
+  }
+}
+
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -98,9 +112,9 @@ int main() {
           // convert speed to m/s
           v = v * 1.6 * 1000 / 3600;
 
-          // normalize psi to -PI to PI
-          while (psi > M_PI) { psi -= 2*M_PI; }
-          while (psi < -M_PI) { psi += 2*M_PI; }
+//          // normalize psi to -PI to PI
+//          while (psi > M_PI) { psi -= 2*M_PI; }
+//          while (psi < -M_PI) { psi += 2*M_PI; }
 
           /*
           * Calculate steering angle and throttle using MPC.
@@ -154,11 +168,13 @@ int main() {
           msgJson["mpc_y"] = mpc_y_vals;
 
           //Display the waypoints/reference line
-          vector<double> next_x_vals(ptsx);
-          vector<double> next_y_vals(ptsy);
+          vector<double> next_x_vals(ptsx.size());
+          vector<double> next_y_vals(ptsy.size());
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+          convertMapToCarCoords(ptsx, ptsy, next_x_vals, next_y_vals, px, py, psi);
+
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
@@ -219,3 +235,4 @@ int main() {
   }
   h.run();
 }
+
