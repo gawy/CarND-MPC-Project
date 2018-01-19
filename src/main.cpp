@@ -112,10 +112,6 @@ int main() {
           // convert speed to m/s
           v = v * 1.6 * 1000 / 3600;
 
-//          // normalize psi to -PI to PI
-//          while (psi > M_PI) { psi -= 2*M_PI; }
-//          while (psi < -M_PI) { psi += 2*M_PI; }
-
           /*
           * Calculate steering angle and throttle using MPC.
           *
@@ -133,25 +129,24 @@ int main() {
 
           cout << "X size: "<< x_pts.size()<< endl;
           VectorXd coeffs = polyfit(x_pts, y_pts, 3); //fit polinomial to waypoints
+
           cout << "Poly test: x=" << x_pts[1] << ", y=" << polyeval(coeffs, x_pts[1])
                << "; x1=" << x_pts[4] << ", y1=" << polyeval(coeffs, x_pts[4]) << endl;
 
-          double cte = polyeval(coeffs, px) - py;
-          double direction = (y_pts[1]-y_pts[0] > 0) ? 0 : -M_PI;
-          double tan_psi = coeffs[1] + 2*coeffs[2]*px + 3*coeffs[3]*px*px + direction;
+          double cte = polyeval(coeffs, 0);
+          double tan_psi = coeffs[1] + 2*coeffs[2]*px + 3*coeffs[3]*px*px;
 
-          double epsi = psi - atan(tan_psi);
+          double epsi = - atan(tan_psi);
 
-          cout << "epsi=" << epsi << ", k="<<tan_psi << "(" << rad2deg(tan_psi) << " deg) "
-               << ", real_psi="<<psi << "(" << rad2deg(psi) << " deg) " << endl;
+          cout << "epsi=" << epsi << ", k="<<tan_psi << "(" << rad2deg(tan_psi) << " deg) " << endl;
 
           Eigen::VectorXd state(6);
           state << 0.0, 0.0, 0.0, v, cte, epsi;
-          cout << "State vector is ready" << endl;
 
           cout << "Polynomial coeffs: " << coeffs[0] << "; " << coeffs[1]<< "; " << coeffs[2]<< "; " << coeffs[3] << endl;
 
-          vector<double> controls = mpc.Solve(state, coeffs);
+          long pts_len = x_pts.size();
+          vector<double> controls = mpc.Solve(state, coeffs, x_pts[pts_len - 1], y_pts[pts_len - 1]);
 
           double steer_value = controls[0] / deg2rad(25);
           double throttle_value = controls[1];

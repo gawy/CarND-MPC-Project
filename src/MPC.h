@@ -13,13 +13,16 @@ class MPC {
   vector<double> x_waypts = vector<double>(6);
   vector<double> y_waypts = vector<double>(6);
 
+  double x_destination;
+  double y_destination;
+
   MPC();
 
   virtual ~MPC();
 
   // Solve the model given an initial state and polynomial coefficients.
   // Return the first actuations.
-  vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs);
+  vector<double> Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double x_dest, double y_dest);
 
   void printVarOverTime(const CppAD::vector<double> &sx, const string &lbl, size_t start_idx, size_t n_count) const;
 
@@ -28,6 +31,8 @@ class MPC {
 
   void initConstraintBounds(const Eigen::VectorXd &state, const size_t n_constraints,
                             CppAD::vector<double> &constraints_lowerbound, CppAD::vector<double> &constraints_upperbound) const;
+
+
 };
 
 #endif /* MPC_H */

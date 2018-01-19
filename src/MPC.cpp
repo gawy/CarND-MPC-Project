@@ -5,9 +5,9 @@
 
 using CppAD::AD;
 
-// TODO: Set the timestep length and duration
+// Set the timestep length and duration
 const size_t N = 10;
-double dt = 0.08;
+double dt = 0.2;
 
 const size_t N_STATE = 6;
 
@@ -28,8 +28,8 @@ const size_t psicorrection_start = psidest_start + N;
 
 // Weights
 const double CTE_WEIGHT = 1.0;
-const double EPSI_WEIGHT = 5.0;
-const double VELOCITY_WEIGHT = 5.0;
+const double EPSI_WEIGHT = 1.0;
+const double VELOCITY_WEIGHT = 1.0;
 
 
 // Set the number of model variables (includes both states and inputs).
@@ -58,7 +58,14 @@ class FG_eval {
  public:
   // Fitted polynomial coefficients
   Eigen::VectorXd coeffs;
-  FG_eval(Eigen::VectorXd coeffs) { this->coeffs = coeffs; }
+  double x_dest;
+  double y_dest;
+  FG_eval(Eigen::VectorXd coeffs, double x_dst, double y_dst) {
+
+    this->coeffs = coeffs;
+    this->x_dest = x_dst;
+    this->y_dest = y_dst;
+  }
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
@@ -75,6 +82,7 @@ class FG_eval {
           + CppAD::pow(vars[epsi_start], 2) * EPSI_WEIGHT
           + CppAD::pow(vars[v_start] - 22, 2) * VELOCITY_WEIGHT; // not good for when we need to stop at some point
 //    fg[0] += CppAD::pow(vars[delta_start], 2);
+//    fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(vars[x_start]-x_dest, 2) + CppAD::pow(vars[y_start]-y_dest, 2)), 2);
 
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -109,9 +117,7 @@ class FG_eval {
       AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
 //      fg[1 + f0_start + t] = f0;
 
-      AD<double> psi_correction = CppAD::CondExpGe(y1, y0, ad_zero, ad_mpi);
-      AD<double> psi_dest = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2)
-                                        + psi_correction);
+      AD<double> psi_dest = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
 //      fg[1 + psidest_start + t] = psi_dest;
 //      fg[1 + psicorrection_start + t] = psi_correction;
 
@@ -121,14 +127,16 @@ class FG_eval {
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt); //y[t+1] - y[t] = 0
       fg[1 + psi_start + t] = psi1 - (psi0 + v0/Lf * delta0 * dt); // psi[t+1] - psi[t] = 0
       fg[1 + v_start + t] = v1 - (v0 + a0 * dt); // velocity
-      fg[1 + cte_start + t] = (f0-y0) + v0 * CppAD::sin(epsi0) * dt; // cte
-      fg[1 + epsi_start + t] = psi0 - psi_dest + v0/Lf * delta0 * dt; // psi error
+      fg[1 + cte_start + t] = cte1 - ((f0-y0) + v0 * CppAD::sin(epsi0) * dt); // cte
+      fg[1 + epsi_start + t] = epsi1 - (psi0 - psi_dest + v0/Lf * delta0 * dt); // psi error
 
 
       // update constraints
       fg[0] += CppAD::pow(cte1, 2) * CTE_WEIGHT;
       fg[0] += CppAD::pow(epsi1, 2) * EPSI_WEIGHT;
       fg[0] += CppAD::pow(v1 - 22, 2) * VELOCITY_WEIGHT;
+
+//      fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(x1-x_dest, 2) + CppAD::pow(y1-y_dest, 2)), 2);
 
 //      //reduce use of actuators
 //      fg[0] += CppAD::pow(delta0, 2);
@@ -150,12 +158,15 @@ class FG_eval {
 MPC::MPC() {}
 MPC::~MPC() {}
 
-vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
+vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double x_dest, double y_dest) {
   bool ok = true;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
   x_waypts.clear();
   y_waypts.clear();
+
+  x_destination = x_dest;
+  y_destination = y_dest;
 
   cout << "N vars=" << n_vars << ", n constraints=" << n_constraints << endl;
 
@@ -210,7 +221,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   cout << "Created eval object" << endl;
   // object that computes objective and constraints
-  FG_eval fg_eval(coeffs);
+  FG_eval fg_eval(coeffs, x_destination, y_destination);
 
   //
   // NOTE: You don't have to worry about these options
@@ -218,7 +229,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // options for IPOPT solver
   std::string options;
   // Uncomment this if you'd like more print information
-  options += "Integer print_level  5\n";
+  options += "Integer print_level  4\n";
   // NOTE: Setting sparse to true allows the solver to take advantage
   // of sparse routines, this makes the computation MUCH FASTER. If you
   // can uncomment 1 of these and see if it makes a difference or not but
@@ -293,7 +304,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   //
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
-  return {solution.x[delta_start], solution.x[a_start]};
+  return {-solution.x[delta_start], solution.x[a_start]}; //delta is inverted for simulator
 }
 
 void MPC::initConstraintBounds(const Eigen::VectorXd &state, const size_t n_constraints,
@@ -403,9 +414,7 @@ void MPC::initVarBounds(const Eigen::VectorXd &state,
 
 void MPC::printVarOverTime(const CppAD::vector<double> &sx, const string &lbl, size_t start_idx, size_t n_count) const {
   cout << setw(6) << lbl << ": ";
-//  for (int i = 0; i < (N-n_count); ++i) {
-//    cout << setw(11) << ""; //place holder if we output is not aligned. Mostlikely it is due to shorter initial state vector
-//  }
+
   for (int t = 0; t < n_count; ++t) {
     cout << setw(9) << setprecision(3) << sx[start_idx + t] << ", ";
   }
