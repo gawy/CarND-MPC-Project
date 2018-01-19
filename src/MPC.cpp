@@ -6,8 +6,10 @@
 using CppAD::AD;
 
 // Set the timestep length and duration
-const size_t N = 10;
-double dt = 0.2;
+const size_t N = 18;
+double dt = 0.18;
+
+const double TARGET_V = 22; // 50mph
 
 const size_t N_STATE = 6;
 
@@ -22,14 +24,15 @@ const size_t epsi_start = 5 * N;
 const size_t delta_start = 6 * N;
 const size_t a_start = delta_start + N - 1;
 
-const size_t f0_start = epsi_start + N;
-const size_t psidest_start = f0_start + N;
-const size_t psicorrection_start = psidest_start + N;
+//const size_t f0_start = epsi_start + N;
+//const size_t psidest_start = f0_start + N;
+//const size_t psicorrection_start = psidest_start + N;
 
 // Weights
-const double CTE_WEIGHT = 1.0;
+const double CTE_WEIGHT = 255.0;
 const double EPSI_WEIGHT = 1.0;
 const double VELOCITY_WEIGHT = 1.0;
+const double ACTUATION_WEIGHT = 20.0;
 
 
 // Set the number of model variables (includes both states and inputs).
@@ -74,14 +77,11 @@ class FG_eval {
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
 
-    AD<double> ad_zero = 0.0;
-    AD<double> ad_mpi = -M_PI;
-
     fg[0] = 0; //cost value
-    fg[0] += CppAD::pow(vars[cte_start], 2) * CTE_WEIGHT
+    fg[0] += CppAD::pow(vars[cte_start], 4) * CTE_WEIGHT
           + CppAD::pow(vars[epsi_start], 2) * EPSI_WEIGHT
-          + CppAD::pow(vars[v_start] - 22, 2) * VELOCITY_WEIGHT; // not good for when we need to stop at some point
-//    fg[0] += CppAD::pow(vars[delta_start], 2);
+          + CppAD::pow(vars[v_start] - TARGET_V, 2) * VELOCITY_WEIGHT; // not good for when we need to stop at some point
+    fg[0] += CppAD::pow(vars[delta_start], 2) + ACTUATION_WEIGHT * CppAD::pow(vars[a_start], 2);
 //    fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(vars[x_start]-x_dest, 2) + CppAD::pow(vars[y_start]-y_dest, 2)), 2);
 
     fg[1 + x_start] = vars[x_start];
@@ -132,20 +132,20 @@ class FG_eval {
 
 
       // update constraints
-      fg[0] += CppAD::pow(cte1, 2) * CTE_WEIGHT;
+      fg[0] += CppAD::pow(cte1, 4) * CTE_WEIGHT;
       fg[0] += CppAD::pow(epsi1, 2) * EPSI_WEIGHT;
-      fg[0] += CppAD::pow(v1 - 22, 2) * VELOCITY_WEIGHT;
+      fg[0] += CppAD::pow(v1 - TARGET_V, 2) * VELOCITY_WEIGHT;
 
 //      fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(x1-x_dest, 2) + CppAD::pow(y1-y_dest, 2)), 2);
 
 //      //reduce use of actuators
-//      fg[0] += CppAD::pow(delta0, 2);
-//      fg[0] += CppAD::pow(a0, 2);
+      fg[0] += CppAD::pow(delta0, 2);
+      fg[0] += CppAD::pow(a0, 2);
 
       // reduce sharp actuations
       if (t > 1) {
-        fg[0] += CppAD::pow(delta0 - vars[delta_start + t - 2], 2);
-        fg[0] += CppAD::pow(a0 - vars[a_start + t - 2], 2);
+        fg[0] += ACTUATION_WEIGHT * CppAD::pow(delta0 - vars[delta_start + t - 2], 2);
+        fg[0] += ACTUATION_WEIGHT * CppAD::pow(a0 - vars[a_start + t - 2], 2);
       }
 
     }
@@ -229,7 +229,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
   // options for IPOPT solver
   std::string options;
   // Uncomment this if you'd like more print information
-  options += "Integer print_level  4\n";
+  options += "Integer print_level  0\n";
   // NOTE: Setting sparse to true allows the solver to take advantage
   // of sparse routines, this makes the computation MUCH FASTER. If you
   // can uncomment 1 of these and see if it makes a difference or not but
@@ -274,19 +274,19 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
 
   cout << "--------------------------------------------" << endl;
 
-  auto gx = solution.g;
-
-  cout << "Constraints vector size=" << gx.size()<< endl;
-  printVarOverTime(gx, "GX", x_start, N);
-  printVarOverTime(gx, "GY", y_start, N);
-  printVarOverTime(gx, "GPSI", psi_start, N);
-  printVarOverTime(gx, "GV", v_start, N);
-  printVarOverTime(gx, "GCTE", cte_start, N-1);
-  printVarOverTime(gx, "GEPSI", epsi_start, N-1);
-//  printVarOverTime(gx, "F0", f0_start, N);
-//  printVarOverTime(gx, "Psi-D", psidest_start, N);
-//  printVarOverTime(gx, "Psi-Cor", psicorrection_start, N);
-  cout << "############################################" << endl;
+//  auto gx = solution.g;
+//
+//  cout << "Constraints vector size=" << gx.size()<< endl;
+//  printVarOverTime(gx, "GX", x_start, N);
+//  printVarOverTime(gx, "GY", y_start, N);
+//  printVarOverTime(gx, "GPSI", psi_start, N);
+//  printVarOverTime(gx, "GV", v_start, N);
+//  printVarOverTime(gx, "GCTE", cte_start, N-1);
+//  printVarOverTime(gx, "GEPSI", epsi_start, N-1);
+////  printVarOverTime(gx, "F0", f0_start, N);
+////  printVarOverTime(gx, "Psi-D", psidest_start, N);
+////  printVarOverTime(gx, "Psi-Cor", psicorrection_start, N);
+//  cout << "############################################" << endl;
 
   // save resulting points to be accessed
   cout << "MPC waypoints: " << x_waypts.size();
