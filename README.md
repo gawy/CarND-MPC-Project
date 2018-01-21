@@ -2,7 +2,49 @@
 Self-Driving Car Engineer Nanodegree Program
 
 ---
+# Project description
 
+## Model
+
+Main definition of model can be found in MPC.cpp lines 75 to 150.
+
+It relies on state vector that has: 
+* position (`x`, `y`), 
+* orientation of the car `psi`, 
+* velocity `v` 
+* two errors: `cte` - cross track error and orientation error `epsi`.
+* acceleration actuation `a`
+* steering actuation `delta`
+
+Model works with car coordinate system so all data is converted prior to passing it to optimizer.
+
+### Variable bounds:
+* psi: -PI to PI
+* delta: -0.436332 to 0.436332 in radians
+* acceleration `a`: -1 to 1
+All other variables does not have bounds.
+For Details see MPC.cpp:362
+
+### Model constraints
+
+Constraints are based on limitin every state variable to have Zero difference between predicted value and modeled/defined.
+ 
+
+![img1](./img/constraints.png)
+
+## Hyper-parameters
+* N - amount of steps to model ahead. Tested range: 10 to 25
+* dt - time interval between prediction steps. Values tested on: 0.1 to 0.5
+
+Currently selected set behaves well on speeds up to 50 mph and is set to N=18, dt=0.18.
+Both values are results of experiments.
+
+Incresing N leads to too slow computation and so lags in performance. Same time to low value does not allow to plan a smooth path and car starts to change course too often.
+
+Too low dt value is great on hight spead but reduces planning horizon. And too high values make driving inaccurate and car sometimes cuts corners.
+
+
+# Pre project instructions
 ## Dependencies
 
 * cmake >= 3.5

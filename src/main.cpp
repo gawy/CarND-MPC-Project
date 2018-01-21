@@ -15,6 +15,9 @@ using namespace Eigen;
 // for convenience
 using json = nlohmann::json;
 
+const double LATENCY = 0.1; // 100 ms
+const double Lf = 2.67;
+
 // For converting back and forth between radians and degrees.
 constexpr double pi() { return M_PI; }
 double deg2rad(double x) { return x * pi() / 180; }
@@ -108,6 +111,10 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          double acceleration = j[1]["throttle"];
+          double delta = -1.0 * (double)j[1]["steering_angle"] / deg2rad(25);
+
+          cout << "Steering angle: " << j[1]["steering_angle"] << ", converted=" << delta << endl;
 
           // convert speed to m/s
           v = v * 1.6 * 1000 / 3600;
@@ -127,6 +134,18 @@ int main() {
           Eigen::Map<VectorXd> y_pts(car_y.data(), car_y.size());
 
 
+          //adjust for latency
+          // simple way is to move car position to after the latency time
+//          px = v * cos(psi) * LATENCY;
+//          py = v * sin(psi) * LATENCY;
+//          v += acceleration * LATENCY;
+//          psi = v / Lf * delta * LATENCY;
+//          cout << "Initial state corrected for 100ms Latency" << endl;
+//          cout << "x=" << px << ", y=" << py << ", psi=" << psi << ", v=" << v << endl;
+          px = 0;
+          py = 0;
+          psi = 0;
+
           cout << "X size: "<< x_pts.size()<< endl;
           VectorXd coeffs = polyfit(x_pts, y_pts, 3); //fit polinomial to waypoints
 
@@ -141,7 +160,7 @@ int main() {
           cout << "epsi=" << epsi << ", k="<<tan_psi << "(" << rad2deg(tan_psi) << " deg) " << endl;
 
           Eigen::VectorXd state(6);
-          state << 0.0, 0.0, 0.0, v, cte, epsi;
+          state << px, py, psi, v, cte, epsi;
 
           cout << "Polynomial coeffs: " << coeffs[0] << "; " << coeffs[1]<< "; " << coeffs[2]<< "; " << coeffs[3] << endl;
 
