@@ -121,7 +121,7 @@ int main() {
           cout << "Steering angle: " << j[1]["steering_angle"] << ", converted=" << delta << endl;
 
           // convert speed to m/s
-          v = v * 1.6 * 1000 / 3600;
+          v = v * 1609.34 / 3600;
 
           /*
           * Calculate steering angle and throttle using MPC.
@@ -155,28 +155,30 @@ int main() {
                << "; x0=" << 0 << ", y0=" << polyeval(coeffs, 0)
                << endl;
 
-
-          if (LATENCY > 0.0) {
-            //adjust for latency
-            // simple way is to move car position to after the latency time
-            x_car += v * cos(psi_car) * LATENCY;
-            y_car += v * sin(psi_car) * LATENCY;
-            v += acceleration * LATENCY;
-            psi_car += v / Lf * delta * LATENCY;
-            cout << "Initial state corrected for Latency" << endl;
-            cout << "x=" << x_car << ", y=" << y_car << ", psi=" << psi_car << ", v=" << v << endl;
-
-            px = x_car; py = y_car; psi = psi_car;
-          }
-
-
-          double cte = polyeval(coeffs, x_car) - y_car;
+          double cte = y_car - polyeval(coeffs, x_car);
           double tan_psi = coeffs[1] + 2*coeffs[2]*x_car + 3*coeffs[3]*x_car*x_car;
 
           double epsi = psi_car - atan(tan_psi);
 
           cout << "epsi=" << epsi << ", k="<<tan_psi << "(" << rad2deg(tan_psi) << " deg) " << endl;
 
+          if (LATENCY > 0.0) {
+            //adjust for latency
+            // simple way is to move car position to after the latency time
+            x_car += v * cos(psi_car) * LATENCY;
+            y_car += v * sin(psi_car) * LATENCY;
+            psi_car += v / Lf * delta * LATENCY;
+
+            cout << "Initial state corrected for Latency" << endl;
+            cout << "x=" << x_car << ", y=" << y_car << ", psi=" << psi_car << ", v=" << v << endl;
+
+            cte = cte + v * sin(epsi) * LATENCY;
+            epsi = epsi + v / Lf * delta * LATENCY;
+
+            v += acceleration * LATENCY;
+
+            px = x_car; py = y_car; psi = psi_car;
+          }
 
           Eigen::VectorXd state(6);
           state << x_car, y_car, psi_car, v, cte, epsi;
@@ -237,7 +239,11 @@ int main() {
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
           milliseconds time_end = duration_cast< milliseconds >(system_clock::now().time_since_epoch());
-          cout << "Processing took " << (time_end - time_start).count() << "ms" << endl;
+          auto processing_time = (time_end - time_start).count();
+          cout << "Processing took " << processing_time << "ms" << endl;
+          if (processing_time > 100) {
+            cout << "!!! Took more than 100ms for MPC solver" << endl;
+          }
 
           if (LATENCY > 0.0) {
             this_thread::sleep_for(chrono::milliseconds((int) (LATENCY * 1000)));

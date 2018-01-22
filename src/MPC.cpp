@@ -6,10 +6,10 @@
 using CppAD::AD;
 
 // Set the timestep length and duration
-const size_t N = 18;
+const size_t N = 10;
 double dt = 0.18;
 
-const double TARGET_V = 17; // 50mph
+const double TARGET_V = 25; // 50mph
 
 const size_t N_STATE = 6;
 
@@ -79,6 +79,8 @@ class FG_eval {
     // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
     // NOTE: You'll probably go back and forth between this function and
     // the Solver function below.
+
+    cout << "Solver is using dt=" << dt << endl;
 
     fg[0] = 0; //cost value
     fg[0] += CppAD::pow(vars[cte_start], 4) * CTE_WEIGHT
@@ -170,6 +172,9 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
 
   x_destination = x_dest;
   y_destination = y_dest;
+
+  //set dt dynamically depending on speed
+  dt = (1 - state[3] / 100) * 0.06 + 0.12; // from 0.12 to 0.2;
 
   cout << "N vars=" << n_vars << ", n constraints=" << n_constraints << endl;
 

@@ -39,15 +39,24 @@ Constraints are based on limitin every state variable to have Zero difference be
 * N - amount of steps to model ahead. Tested range: 10 to 25
 * dt - time interval between prediction steps. Values tested on: 0.1 to 0.5
 
-Currently selected set behaves well on speeds up to 30 mph and is set to N=18, dt=0.18 with delay and 50mph without a delay (more tuning is needed).
+Currently selected set behaves well on speeds up to 50 mph and is set to N=10, dt=0.18 with delay and 50mph without a delay (more tuning is needed).
 Both values are results of experiments.
+
+For a while model used 18 steps but it caused too long computation sometimes and was reduced.
+dt is now calculated dinamically based on Velocity. Range used is from 0.11 to 0.18 (for velocities 100 down to 0).
 
 Incresing N leads to too slow computation and so lags in performance. Same time to low value does not allow to plan a smooth path and car starts to change course too often.
 
 Too low dt value is great on hight spead but reduces planning horizon. And too high values make driving inaccurate and car sometimes cuts corners.
 
+## Handling controls delay
 
-Delay: currently model sometimes adds its own computational delay wich may cause very big disruptions. (Adding extra 500ms is very disrupting...)
+100ms delay is added to the model by augmenting initial state prior to passing data to solver.
+All state variables are recomputed as being 100ms in the future from the point we actualy received that data.
+
+See main.cpp:165 for related code.
+
+Currently model sometimes adds its own computational delay which may cause very big disruptions. (Adding extra 300ms is very disrupting...)
 
 # Pre project instructions
 ## Dependencies
