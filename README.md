@@ -4,6 +4,9 @@ Self-Driving Car Engineer Nanodegree Program
 ---
 # Project description
 
+Video of car running the track with 100ms delay and around 30mph speed.
+https://youtu.be/0XWXdWdSofw
+
 ## Model
 
 Main definition of model can be found in MPC.cpp lines 75 to 150.
@@ -29,8 +32,8 @@ For Details see MPC.cpp:362
 
 Constraints are based on limitin every state variable to have Zero difference between predicted value and modeled/defined.
  
-
-![img1](./img/constraints.png)
+ ./img/constraints.png
+![constraints](./img/constraints.png) 
 
 ## Hyper-parameters
 * N - amount of steps to model ahead. Tested range: 10 to 25
