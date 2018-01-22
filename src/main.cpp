@@ -11,6 +11,7 @@
 
 using namespace std;
 using namespace Eigen;
+using namespace std::chrono;
 
 // for convenience
 using json = nlohmann::json;
@@ -104,6 +105,9 @@ int main() {
         auto j = json::parse(s);
         string event = j[0].get<string>();
         if (event == "telemetry") {
+          milliseconds time_start = duration_cast< milliseconds >(system_clock::now().time_since_epoch());
+
+
           // j[1] is the data JSON object
           vector<double> ptsx = j[1]["ptsx"];
           vector<double> ptsy = j[1]["ptsy"];
@@ -112,7 +116,7 @@ int main() {
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
           double acceleration = j[1]["throttle"];
-          double delta = -1.0 * (double)j[1]["steering_angle"] / deg2rad(25);
+          double delta = -1.0 * (double)j[1]["steering_angle"];
 
           cout << "Steering angle: " << j[1]["steering_angle"] << ", converted=" << delta << endl;
 
@@ -126,41 +130,56 @@ int main() {
           *
           */
 
+          double x_car = px;
+          double y_car = py;
+          double psi_car = psi;
+
           vector<double> car_x(ptsx.size());
           vector<double> car_y(ptsx.size());
 
-          convertMapToCarCoords(ptsx, ptsy, car_x, car_y, px, py, psi);
+          convertMapToCarCoords(ptsx, ptsy, car_x, car_y, x_car, y_car, psi_car);
           Eigen::Map<VectorXd> x_pts(car_x.data(), car_x.size());
           Eigen::Map<VectorXd> y_pts(car_y.data(), car_y.size());
 
 
-          //adjust for latency
-          // simple way is to move car position to after the latency time
-//          px = v * cos(psi) * LATENCY;
-//          py = v * sin(psi) * LATENCY;
-//          v += acceleration * LATENCY;
-//          psi = v / Lf * delta * LATENCY;
-//          cout << "Initial state corrected for 100ms Latency" << endl;
-//          cout << "x=" << px << ", y=" << py << ", psi=" << psi << ", v=" << v << endl;
-          px = 0;
-          py = 0;
-          psi = 0;
+          x_car = 0.0;
+          y_car = 0.0;
+          psi_car = 0.0;
 
           cout << "X size: "<< x_pts.size()<< endl;
           VectorXd coeffs = polyfit(x_pts, y_pts, 3); //fit polinomial to waypoints
 
+
           cout << "Poly test: x=" << x_pts[1] << ", y=" << polyeval(coeffs, x_pts[1])
-               << "; x1=" << x_pts[4] << ", y1=" << polyeval(coeffs, x_pts[4]) << endl;
+               << "; x1=" << x_pts[4] << ", y1=" << polyeval(coeffs, x_pts[4])
+               << "; x0=" << 0 << ", y0=" << polyeval(coeffs, 0)
+               << endl;
 
-          double cte = polyeval(coeffs, 0);
-          double tan_psi = coeffs[1] + 2*coeffs[2]*px + 3*coeffs[3]*px*px;
 
-          double epsi = - atan(tan_psi);
+          if (LATENCY > 0.0) {
+            //adjust for latency
+            // simple way is to move car position to after the latency time
+            x_car += v * cos(psi_car) * LATENCY;
+            y_car += v * sin(psi_car) * LATENCY;
+            v += acceleration * LATENCY;
+            psi_car += v / Lf * delta * LATENCY;
+            cout << "Initial state corrected for Latency" << endl;
+            cout << "x=" << x_car << ", y=" << y_car << ", psi=" << psi_car << ", v=" << v << endl;
+
+            px = x_car; py = y_car; psi = psi_car;
+          }
+
+
+          double cte = polyeval(coeffs, x_car) - y_car;
+          double tan_psi = coeffs[1] + 2*coeffs[2]*x_car + 3*coeffs[3]*x_car*x_car;
+
+          double epsi = psi_car - atan(tan_psi);
 
           cout << "epsi=" << epsi << ", k="<<tan_psi << "(" << rad2deg(tan_psi) << " deg) " << endl;
 
+
           Eigen::VectorXd state(6);
-          state << px, py, psi, v, cte, epsi;
+          state << x_car, y_car, psi_car, v, cte, epsi;
 
           cout << "Polynomial coeffs: " << coeffs[0] << "; " << coeffs[1]<< "; " << coeffs[2]<< "; " << coeffs[3] << endl;
 
@@ -196,7 +215,10 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
-          convertMapToCarCoords(ptsx, ptsy, next_x_vals, next_y_vals, px, py, psi);
+          for (int k = 0; k < x_pts.size(); ++k) {
+            next_x_vals[k] = x_pts[k];
+            next_y_vals[k] = y_pts[k];
+          }
 
 
           msgJson["next_x"] = next_x_vals;
@@ -214,7 +236,13 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-//          this_thread::sleep_for(chrono::milliseconds(100));
+          milliseconds time_end = duration_cast< milliseconds >(system_clock::now().time_since_epoch());
+          cout << "Processing took " << (time_end - time_start).count() << "ms" << endl;
+
+          if (LATENCY > 0.0) {
+            this_thread::sleep_for(chrono::milliseconds((int) (LATENCY * 1000)));
+          }
+
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {

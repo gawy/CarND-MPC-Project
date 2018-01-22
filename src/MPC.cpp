@@ -6,10 +6,10 @@
 using CppAD::AD;
 
 // Set the timestep length and duration
-const size_t N = 15;
+const size_t N = 18;
 double dt = 0.18;
 
-const double TARGET_V = 22; // 50mph
+const double TARGET_V = 17; // 50mph
 
 const size_t N_STATE = 6;
 
@@ -29,10 +29,13 @@ const size_t a_start = delta_start + N - 1;
 //const size_t psicorrection_start = psidest_start + N;
 
 // Weights
-const double CTE_WEIGHT = 255.0;
-const double EPSI_WEIGHT = 1.0;
-const double VELOCITY_WEIGHT = 1.0;
-const double ACTUATION_WEIGHT = 20.0;
+const double CTE_WEIGHT = 10;
+const double EPSI_WEIGHT = 100;
+const double VELOCITY_WEIGHT = 1;
+const double ACTUATION_A_WEIGHT = 10;
+const double ACTUATION_D_WEIGHT = 1000;
+const double ACTUATION_DCHANGE_WEIGHT = 1000; // -0.45 to 0.45 scaled to 100
+const double ACTUATION_ACHANGE_WEIGHT = 1;
 
 
 // Set the number of model variables (includes both states and inputs).
@@ -81,7 +84,7 @@ class FG_eval {
     fg[0] += CppAD::pow(vars[cte_start], 4) * CTE_WEIGHT
           + CppAD::pow(vars[epsi_start], 2) * EPSI_WEIGHT
           + CppAD::pow(vars[v_start] - TARGET_V, 2) * VELOCITY_WEIGHT; // not good for when we need to stop at some point
-    fg[0] += CppAD::pow(vars[delta_start], 2) + ACTUATION_WEIGHT * CppAD::pow(vars[a_start], 2);
+    fg[0] += ACTUATION_D_WEIGHT * CppAD::pow(vars[delta_start], 2) + ACTUATION_A_WEIGHT * CppAD::pow(vars[a_start], 2);
 //    fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(vars[x_start]-x_dest, 2) + CppAD::pow(vars[y_start]-y_dest, 2)), 2);
 
     fg[1 + x_start] = vars[x_start];
@@ -139,13 +142,13 @@ class FG_eval {
 //      fg[0] += CppAD::pow(CppAD::sqrt(CppAD::pow(x1-x_dest, 2) + CppAD::pow(y1-y_dest, 2)), 2);
 
 //      //reduce use of actuators
-      fg[0] += CppAD::pow(delta0, 2);
-      fg[0] += CppAD::pow(a0, 2);
+      fg[0] += ACTUATION_D_WEIGHT * CppAD::pow(delta0, 2);
+      fg[0] += ACTUATION_A_WEIGHT * CppAD::pow(a0, 2);
 
       // reduce sharp actuations
       if (t > 1) {
-        fg[0] += ACTUATION_WEIGHT * CppAD::pow(delta0 - vars[delta_start + t - 2], 2);
-        fg[0] += ACTUATION_WEIGHT * CppAD::pow(a0 - vars[a_start + t - 2], 2);
+        fg[0] += ACTUATION_DCHANGE_WEIGHT * CppAD::pow(delta0 - vars[delta_start + t - 2], 4);
+        fg[0] += ACTUATION_ACHANGE_WEIGHT * CppAD::pow(a0 - vars[a_start + t - 2], 2);
       }
 
     }
@@ -239,7 +242,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
   options += "Sparse  true        reverse\n";
   // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
-  options += "Numeric max_cpu_time          0.5\n";
+  options += "Numeric max_cpu_time          0.1\n";
 
   // place to return solution
   CppAD::ipopt::solve_result<Dvector> solution;
@@ -290,7 +293,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs, double 
 
   // save resulting points to be accessed
   cout << "MPC waypoints: " << x_waypts.size();
-  for (int j = 0; j < 6; ++j) {
+  for (int j = 0; j < N; j=j+(int)(N / 6)) {
     x_waypts.push_back(sx[x_start + j]);
     y_waypts.push_back(sx[y_start + j]);
 
